@@ -32,19 +32,113 @@
   UNSPEC_TLS_LE
   UNSPEC_TLS_IE
   UNSPEC_TLS_GD
+  ;; Compact code model.
+  UNSPEC_GPREL
+  UNSPEC_GOT_GPREL
+  UNSPEC_GPREL_ADD
+  UNSPEC_COMPACT_TLS_GD
+  UNSPEC_COMPACT_TLS_IE
 
   ;; High part of PC-relative address.
   UNSPEC_AUIPC
+
+  ;; Initial global pointer
+  UNSPEC_COMPACT_GP
 
   ;; Floating-point unspecs.
   UNSPEC_FLT_QUIET
   UNSPEC_FLE_QUIET
   UNSPEC_COPYSIGN
+  UNSPEC_NCOPYSIGN
+  UNSPEC_XORSIGN
   UNSPEC_LRINT
   UNSPEC_LROUND
 
+  ;; Bitmanip
+  UNSPEC_PCNTW
+
   ;; Stack tie
   UNSPEC_TIE
+
+  ;; Vector unspecs.
+  UNSPEC_FIRST
+  UNSPEC_SBF
+  UNSPEC_SIF
+  UNSPEC_SOF
+  UNSPEC_IOTA
+  UNSPEC_VID
+  UNSPEC_MASKED_STORE
+  UNSPEC_STRIDED_LOAD
+  UNSPEC_STRIDED_STORE
+  UNSPEC_REDUC
+  UNSPEC_ORDERED_REDUC
+  UNSPEC_REDUC_SUM
+  UNSPEC_REDUC_USUM
+  UNSPEC_ORDERED_REDUC_SUM
+  UNSPEC_OVERFLOW
+  UNSPEC_VMULHS
+  UNSPEC_VMULHU
+  UNSPEC_VMULHSU
+  UNSPEC_FCVT_XUF
+  UNSPEC_ROD
+  UNSPEC_VFCLASS
+  UNSPEC_VSLIDEUP
+  UNSPEC_VSLIDE1UP
+  UNSPEC_VFSLIDE1UP
+  UNSPEC_VSLIDEDOWN
+  UNSPEC_VSLIDE1DOWN
+  UNSPEC_VFSLIDE1DOWN
+  UNSPEC_VRGATHER
+  UNSPEC_VCOMPRESS
+  UNSPEC_VNCLIP
+  UNSPEC_VNCLIPU
+  UNSPEC_VSSRL
+  UNSPEC_VSSRA
+  UNSPEC_VAADDU
+  UNSPEC_VAADD
+  UNSPEC_VASUBU
+  UNSPEC_VASUB
+  UNSPEC_VSMUL
+  UNSPEC_VLEFF
+  UNSPEC_LOAD_GATHER
+  UNSPEC_INDEXED_LOAD
+  UNSPEC_STORE_SCATTER
+  UNSPEC_ORDERED_INDEXED_STORE
+  UNSPEC_UNORDERED_INDEXED_STORE
+  UNSPEC_VAMO_SWAP
+  UNSPEC_VAMO_ADD
+  UNSPEC_VAMO_XOR
+  UNSPEC_VAMO_AND
+  UNSPEC_VAMO_OR
+  UNSPEC_VAMO_MIN
+  UNSPEC_VAMO_MAX
+  UNSPEC_VAMO_MINU
+  UNSPEC_VAMO_MAXU
+  UNSPEC_READ_VL
+  UNSPEC_WHOLE_MOVE
+  UNSPEC_VPOPCOUNT
+  UNSPEC_VQMAC
+  UNSPEC_VMADD
+  UNSPEC_READ_VTYPE
+  UNSPEC_WRITE_VTYPE
+  UNSPEC_MASK_VMADD
+  UNSPEC_MASK_VMSUB
+  UNSPEC_MASK_VMACC
+  UNSPEC_MASK_VMSAC
+  UNSPEC_MASK_VFMADD
+  UNSPEC_MASK_VFMACC
+  UNSPEC_MASK_VFNMADD
+  UNSPEC_MASK_VFNMACC
+  UNSPEC_MASK_VFWMACC
+  UNSPEC_MASK_VFWNMACC
+  UNSPEC_VCLR
+  UNSPEC_VSET
+  UNSPEC_USEVL
+
+  ;; Segment load/store
+  UNSPEC_SEG_STORE
+  UNSPEC_SEG_LOAD
+  UNSPEC_SEG_LOAD_FIRST_FAULT
 ])
 
 (define_c_enum "unspecv" [
@@ -55,6 +149,17 @@
   ;; Floating-point unspecs.
   UNSPECV_FRFLAGS
   UNSPECV_FSFLAGS
+
+  ;; CSR read
+  UNSPECV_CSR_READ
+  ;; CSR read and set bits
+  UNSPECV_CSR_READ_SET_BITS
+  ;; CSR read and clear bits
+  UNSPECV_CSR_READ_CLEAR_BITS
+  ;; CSR read and write
+  UNSPECV_CSR_READ_WRITE
+  ;; CSR write
+  UNSPECV_CSR_WRITE
 
   ;; Interrupt handler instructions.
   UNSPECV_MRET
@@ -69,6 +174,18 @@
   ;; Stack Smash Protector
   UNSPEC_SSP_SET
   UNSPEC_SSP_TEST
+
+  ;; CMO instructions.
+  UNSPECV_CLEAN
+  UNSPECV_FLUSH
+  UNSPECV_INVAL
+  UNSPECV_ZERO
+  UNSPECV_PREI
+
+  ;; Vector unspecs.
+  UNSPECV_VSETVL
+  UNSPECV_VLOAD
+  UNSPECV_VSTORE
 ])
 
 (define_constants
@@ -90,9 +207,19 @@
    (S10_REGNUM			26)
    (S11_REGNUM			27)
 
+   (VL_REGNUM			66)
+   (VTYPE_REGNUM		67)
+
    (NORMAL_RETURN		0)
    (SIBCALL_RETURN		1)
    (EXCEPTION_RETURN		2)
+
+   (MSTATUS_REGNUM		0x300)
+   (MEPC_REGNUM			0x341)
+   (MCAUSE_REGNUM		0x342)
+   (MSCRATCHCSW_REGNUM		0x348)
+
+   (MSTATUS_MIE_BIT		8)
 ])
 
 (include "predicates.md")
@@ -124,7 +251,7 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,SF,DF,TF"
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,SF,DF,TF"
   (const_string "unknown"))
 
 ;; True if the main data type is twice the size of a word.
@@ -170,7 +297,8 @@
 (define_attr "type"
   "unknown,branch,jump,call,load,fpload,store,fpstore,
    mtc,mfc,const,arith,logical,shift,slt,imul,idiv,move,fmove,fadd,fmul,
-   fmadd,fdiv,fcmp,fcvt,fsqrt,multi,auipc,sfb_alu,nop,ghost"
+   fmadd,fdiv,fcmp,fcvt,fsqrt,multi,auipc,sfb_alu,nop,ghost,atomic,vector,
+   bitmanip,cpop,clz,ctz,rotate,shnadd,fcvt_i2f,fcvt_f2i"
   (cond [(eq_attr "got" "load") (const_string "load")
 
 	 ;; If a doubleword move uses these expensive instructions,
@@ -252,7 +380,7 @@
 ;; Microarchitectures we know how to tune for.
 ;; Keep this in sync with enum riscv_microarchitecture.
 (define_attr "tune"
-  "generic,sifive_7"
+  "generic,sifive_7,sifive_7n,sifive_8"
   (const (symbol_ref "((enum attr_tune) riscv_microarchitecture)")))
 
 ;; Describe a user's asm statement.
@@ -297,37 +425,38 @@
 
 ;; Iterator for hardware-supported floating-point modes.
 (define_mode_iterator ANYF [(SF "TARGET_HARD_FLOAT")
-			    (DF "TARGET_DOUBLE_FLOAT")])
+			    (DF "TARGET_DOUBLE_FLOAT")
+			    (HF "TARGET_ZFH")])
 
 ;; Iterator for floating-point modes that can be loaded into X registers.
-(define_mode_iterator SOFTF [SF (DF "TARGET_64BIT")])
+(define_mode_iterator SOFTF [SF (DF "TARGET_64BIT") (HF "TARGET_ZFHMIN")])
 
 ;; This attribute gives the length suffix for a sign- or zero-extension
 ;; instruction.
 (define_mode_attr size [(QI "b") (HI "h")])
 
 ;; Mode attributes for loads.
-(define_mode_attr load [(QI "lb") (HI "lh") (SI "lw") (DI "ld") (SF "flw") (DF "fld")])
+(define_mode_attr load [(QI "lb") (HI "lh") (SI "lw") (DI "ld") (SF "flw") (DF "fld") (HF "flh")])
 
 ;; Instruction names for integer loads that aren't explicitly sign or zero
 ;; extended.  See riscv_output_move and LOAD_EXTEND_OP.
 (define_mode_attr default_load [(QI "lbu") (HI "lhu") (SI "lw") (DI "ld")])
 
 ;; Mode attribute for FP loads into integer registers.
-(define_mode_attr softload [(SF "lw") (DF "ld")])
+(define_mode_attr softload [(SF "lw") (DF "ld") (HF "lh")])
 
 ;; Instruction names for stores.
-(define_mode_attr store [(QI "sb") (HI "sh") (SI "sw") (DI "sd") (SF "fsw") (DF "fsd")])
+(define_mode_attr store [(QI "sb") (HI "sh") (SI "sw") (DI "sd") (SF "fsw") (DF "fsd") (HF "fsh")])
 
 ;; Instruction names for FP stores from integer registers.
-(define_mode_attr softstore [(SF "sw") (DF "sd")])
+(define_mode_attr softstore [(SF "sw") (DF "sd") (HF "sh")])
 
 ;; This attribute gives the best constraint to use for registers of
 ;; a given mode.
 (define_mode_attr reg [(SI "d") (DI "d") (CC "d")])
 
 ;; This attribute gives the format suffix for floating-point operations.
-(define_mode_attr fmt [(SF "s") (DF "d")])
+(define_mode_attr fmt [(SF "s") (DF "d") (HF "h")])
 
 ;; This attribute gives the integer suffix for floating-point conversions.
 (define_mode_attr ifmt [(SI "w") (DI "l")])
@@ -337,7 +466,7 @@
 
 ;; This attribute gives the upper-case mode name for one unit of a
 ;; floating-point mode.
-(define_mode_attr UNITMODE [(SF "SF") (DF "DF")])
+(define_mode_attr UNITMODE [(SF "SF") (DF "DF") (HF "HF")])
 
 ;; This attribute gives the integer mode that has half the size of
 ;; the controlling mode.
@@ -383,13 +512,18 @@
 (define_code_iterator any_lt [lt ltu])
 (define_code_iterator any_le [le leu])
 
+;; All operation valid for min and max.
+(define_code_iterator any_minmax [smin umin smax umax])
+
 ;; <u> expands to an empty string when doing a signed operation and
 ;; "u" when doing an unsigned operation.
 (define_code_attr u [(sign_extend "") (zero_extend "u")
 		     (gt "") (gtu "u")
 		     (ge "") (geu "u")
 		     (lt "") (ltu "u")
-		     (le "") (leu "u")])
+		     (le "") (leu "u")
+		     (fix "") (unsigned_fix "u")
+		     (float "") (unsigned_float "u")])
 
 ;; <su> is like <u>, but the signed form expands to "s" rather than "".
 (define_code_attr su [(sign_extend "s") (zero_extend "u")])
@@ -398,6 +532,7 @@
 (define_code_attr optab [(ashift "ashl")
 			 (ashiftrt "ashr")
 			 (lshiftrt "lshr")
+			 (mult "mul")
 			 (div "div")
 			 (mod "mod")
 			 (udiv "udiv")
@@ -410,7 +545,13 @@
 			 (xor "xor")
 			 (and "and")
 			 (plus "add")
-			 (minus "sub")])
+			 (minus "sub")
+			 (smax "max")
+			 (smin "min")
+			 (us_plus "usadd")
+			 (ss_plus "ssadd")
+			 (us_minus "ussub")
+			 (ss_minus "sssub")])
 
 ;; <insn> expands to the name of the insn that implements a particular code.
 (define_code_attr insn [(ashift "sll")
@@ -424,7 +565,15 @@
 			(xor "xor")
 			(and "and")
 			(plus "add")
-			(minus "sub")])
+			(minus "sub")
+			(smax "max")
+			(umax "maxu")
+			(smin "min")
+			(umin "minu")
+			(us_plus "saddu")
+			(ss_plus "sadd")
+			(us_minus "ssubu")
+			(ss_minus "ssub")])
 
 ;; Ghost instructions produce no real code and introduce no hazards.
 ;; They exist purely to express an effect on dataflow.
@@ -457,6 +606,21 @@
   { return TARGET_64BIT ? "add%i2w\t%0,%1,%2" : "add%i2\t%0,%1,%2"; }
   [(set_attr "type" "arith")
    (set_attr "mode" "SI")])
+
+(define_expand "adddi3x"
+  [(set (match_operand:DI          0 "register_operand")
+	(plus:DI (match_operand:DI 1 "register_operand")
+		 (match_operand:DI 2 "move_operand")))]
+  "TARGET_64BIT"
+{
+  if (!arith_operand (operands[2], DImode))
+    {
+      gcc_assert (false);
+    }
+}
+  [(set_attr "type" "arith")
+   (set_attr "mode" "DI")])
+
 
 (define_insn "adddi3"
   [(set (match_operand:DI          0 "register_operand" "=r,r")
@@ -1048,6 +1212,24 @@
   [(set_attr "type" "fcvt")
    (set_attr "mode" "SF")])
 
+(define_insn "truncsfhf2"
+  [(set (match_operand:HF     0 "register_operand" "=f")
+	(float_truncate:HF
+	    (match_operand:SF 1 "register_operand" " f")))]
+  "TARGET_ZFHMIN"
+  "fcvt.h.s\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "HF")])
+
+(define_insn "truncdfhf2"
+  [(set (match_operand:HF     0 "register_operand" "=f")
+	(float_truncate:HF
+	    (match_operand:DF 1 "register_operand" " f")))]
+  "TARGET_ZFHMIN && TARGET_DOUBLE_FLOAT"
+  "fcvt.h.d\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "HF")])
+
 ;;
 ;;  ....................
 ;;
@@ -1057,11 +1239,16 @@
 
 ;; Extension insns.
 
-(define_insn_and_split "zero_extendsidi2"
+(define_expand "zero_extendsidi2"
+  [(set (match_operand:DI 0 "register_operand")
+	(zero_extend:DI (match_operand:SI 1 "nonimmediate_operand")))]
+  "TARGET_64BIT")
+
+(define_insn_and_split "*zero_extendsidi2_internal"
   [(set (match_operand:DI     0 "register_operand"     "=r,r")
 	(zero_extend:DI
 	    (match_operand:SI 1 "nonimmediate_operand" " r,m")))]
-  "TARGET_64BIT"
+  "TARGET_64BIT && !(TARGET_ZBA || TARGET_ZBB)"
   "@
    #
    lwu\t%0,%1"
@@ -1076,11 +1263,15 @@
   [(set_attr "move_type" "shift_shift,load")
    (set_attr "mode" "DI")])
 
-(define_insn_and_split "zero_extendhi<GPR:mode>2"
+(define_expand "zero_extendhi<GPR:mode>2"
+  [(set (match_operand:GPR 0 "register_operand")
+	(zero_extend:GPR (match_operand:HI 1 "nonimmediate_operand")))])
+
+(define_insn_and_split "*zero_extendhi<GPR:mode>2_internal"
   [(set (match_operand:GPR    0 "register_operand"     "=r,r")
 	(zero_extend:GPR
 	    (match_operand:HI 1 "nonimmediate_operand" " r,m")))]
-  ""
+  "!(TARGET_ZBB || TARGET_ZBP)"
   "@
    #
    lhu\t%0,%1"
@@ -1127,11 +1318,16 @@
   [(set_attr "move_type" "move,load")
    (set_attr "mode" "DI")])
 
-(define_insn_and_split "extend<SHORT:mode><SUPERQI:mode>2"
+(define_expand "extend<SHORT:mode><SUPERQI:mode>2"
+  [(set (match_operand:SUPERQI 0 "register_operand")
+	(sign_extend:SUPERQI (match_operand:SHORT 1 "nonimmediate_operand")))]
+  "")
+
+(define_insn_and_split "*extend<SHORT:mode><SUPERQI:mode>2"
   [(set (match_operand:SUPERQI   0 "register_operand"     "=r,r")
 	(sign_extend:SUPERQI
 	    (match_operand:SHORT 1 "nonimmediate_operand" " r,m")))]
-  ""
+  "!TARGET_ZBB"
   "@
    #
    l<SHORT:size>\t%0,%1"
@@ -1149,12 +1345,30 @@
   [(set_attr "move_type" "shift_shift,load")
    (set_attr "mode" "SI")])
 
+(define_insn "extendhfsf2"
+  [(set (match_operand:SF     0 "register_operand" "=f")
+	(float_extend:SF
+	    (match_operand:HF 1 "register_operand" " f")))]
+  "TARGET_ZFHMIN"
+  "fcvt.s.h\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "SF")])
+
 (define_insn "extendsfdf2"
   [(set (match_operand:DF     0 "register_operand" "=f")
 	(float_extend:DF
 	    (match_operand:SF 1 "register_operand" " f")))]
   "TARGET_DOUBLE_FLOAT"
   "fcvt.d.s\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "DF")])
+
+(define_insn "extendhfdf2"
+  [(set (match_operand:DF     0 "register_operand" "=f")
+	(float_extend:DF
+	    (match_operand:HF 1 "register_operand" " f")))]
+  "TARGET_ZFHMIN && TARGET_DOUBLE_FLOAT"
+  "fcvt.d.h\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "DF")])
 
@@ -1171,7 +1385,7 @@
 	    (match_operand:ANYF 1 "register_operand" " f")))]
   "TARGET_HARD_FLOAT"
   "fcvt.<GPR:ifmt>.<ANYF:fmt> %0,%1,rtz"
-  [(set_attr "type" "fcvt")
+  [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
 (define_insn "fixuns_trunc<ANYF:mode><GPR:mode>2"
@@ -1180,7 +1394,7 @@
 	    (match_operand:ANYF 1 "register_operand" " f")))]
   "TARGET_HARD_FLOAT"
   "fcvt.<GPR:ifmt>u.<ANYF:fmt> %0,%1,rtz"
-  [(set_attr "type" "fcvt")
+  [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
 (define_insn "float<GPR:mode><ANYF:mode>2"
@@ -1189,7 +1403,7 @@
 	    (match_operand:GPR 1 "reg_or_0_operand" " rJ")))]
   "TARGET_HARD_FLOAT"
   "fcvt.<ANYF:fmt>.<GPR:ifmt>\t%0,%z1"
-  [(set_attr "type" "fcvt")
+  [(set_attr "type" "fcvt_i2f")
    (set_attr "mode" "<ANYF:MODE>")])
 
 (define_insn "floatuns<GPR:mode><ANYF:mode>2"
@@ -1198,7 +1412,7 @@
 	    (match_operand:GPR 1 "reg_or_0_operand" " rJ")))]
   "TARGET_HARD_FLOAT"
   "fcvt.<ANYF:fmt>.<GPR:ifmt>u\t%0,%z1"
-  [(set_attr "type" "fcvt")
+  [(set_attr "type" "fcvt_i2f")
    (set_attr "mode" "<ANYF:MODE>")])
 
 (define_insn "l<rint_pattern><ANYF:mode><GPR:mode>2"
@@ -1208,7 +1422,7 @@
 	    RINT))]
   "TARGET_HARD_FLOAT"
   "fcvt.<GPR:ifmt>.<ANYF:fmt> %0,%1,<rint_rm>"
-  [(set_attr "type" "fcvt")
+  [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
 ;;
@@ -1254,6 +1468,17 @@
   [(set_attr "got" "load")
    (set_attr "mode" "<MODE>")])
 
+(define_insn "compact_got_load_tls_gd<mode>"
+  [(set (match_operand:P      0 "register_operand" "=&r")
+	(unspec:P
+	    [(match_operand:P 1 "symbolic_operand" "")
+	     (match_operand:P 2 "register_operand" "r")]
+	    UNSPEC_COMPACT_TLS_GD))]
+  "COMPACT_CMODEL_P"
+  "la.tls.gd.gprel\t%0,%1,%2"
+  [(set_attr "got" "load")
+   (set_attr "mode" "<MODE>")])
+
 (define_insn "got_load_tls_ie<mode>"
   [(set (match_operand:P      0 "register_operand" "=r")
 	(unspec:P
@@ -1261,6 +1486,17 @@
 	    UNSPEC_TLS_IE))]
   ""
   "la.tls.ie\t%0,%1"
+  [(set_attr "got" "load")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "compact_got_load_tls_ie<mode>"
+  [(set (match_operand:P      0 "register_operand" "=&r")
+	(unspec:P
+	    [(match_operand:P 1 "symbolic_operand" "")
+	     (match_operand:P 2 "register_operand" "r")]
+	    UNSPEC_COMPACT_TLS_IE))]
+  "COMPACT_CMODEL_P"
+  "la.tls.ie.gprel\t%0,%1,%2"
   [(set_attr "got" "load")
    (set_attr "mode" "<MODE>")])
 
@@ -1286,6 +1522,63 @@
 		  (match_operand:P 2 "symbolic_operand" "")))]
   ""
   "addi\t%0,%1,%R2"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "<MODE>")])
+
+;; Compact code model.
+
+(define_insn "init_compact_gp<mode>"
+  [(set (match_operand:P    0 "register_operand" "+r")
+	(unspec:P
+	  [(match_operand:P 1 "symbolic_operand" "")
+	   (pc)]
+	  UNSPEC_COMPACT_GP))]
+  "COMPACT_CMODEL_P"
+  "1:\n\tauipc\t%0 ,%%pcrel_hi(%1)\n\taddi\t%0, %0, %%pcrel_lo(1b)"
+  [(set_attr "type" "multi")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "la<mode>_got_gprel"
+  [(set (match_operand:P    0 "register_operand" "=&r")
+	(unspec:P
+	  [(match_operand:P 1 "register_operand" "r")
+	   (match_operand:P 2 "symbolic_operand" "")]
+	  UNSPEC_GOT_GPREL))]
+  "COMPACT_CMODEL_P"
+  "la.got.gprel\t%0,%2,%1"
+  [(set_attr "type" "multi")
+   (set_attr "mode" "<MODE>")])
+
+;; Split lui and addi instructions,
+;; it helps optimization for loop invariant motion.
+(define_insn_and_split "compact_gprel<mode>"
+  [(set (match_operand:P    0 "register_operand" "=&r")
+	(unspec:P
+	  [(match_operand:P 1 "register_operand" "r")
+	   (match_operand:P 2 "symbolic_operand" "")]
+	  UNSPEC_GPREL))]
+  "COMPACT_CMODEL_P"
+  "#"
+  "&& 1"
+  [(set (match_dup 0)
+	(high:P (match_dup 2)))
+   (set (match_dup 0)
+	(unspec:P
+	  [(match_dup 0)
+	   (match_dup 1)
+	   (match_dup 2)]UNSPEC_GPREL_ADD))]
+  ""
+)
+
+(define_insn "gprel_add<mode>"
+  [(set (match_operand:P    0 "register_operand" "=r")
+	(unspec:P
+	  [(match_operand:P 1 "register_operand" "0")
+	   (match_operand:P 2 "register_operand" "r")
+	   (match_operand:P 3 "symbolic_operand" "")]
+	  UNSPEC_GPREL_ADD))]
+  "COMPACT_CMODEL_P"
+  "add\t%0,%2,%1,%%gprel(%3)"
   [(set_attr "type" "arith")
    (set_attr "mode" "<MODE>")])
 
@@ -1327,23 +1620,23 @@
 })
 
 (define_insn "*movdi_32bit"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,m,  *f,*f,*r,*f,*m")
-	(match_operand:DI 1 "move_operand"         " r,i,m,r,*J*r,*m,*f,*f,*f"))]
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r, r,r,m,  *f,*f,*r,*f,*m")
+	(match_operand:DI 1 "move_operand"         " r,i,vp,m,r,*J*r,*m,*f,*f,*f"))]
   "!TARGET_64BIT
    && (register_operand (operands[0], DImode)
        || reg_or_0_operand (operands[1], DImode))"
   { return riscv_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fmove,fpstore")
+  [(set_attr "move_type" "move,const,const,load,store,mtc,fpload,mfc,fmove,fpstore")
    (set_attr "mode" "DI")])
 
 (define_insn "*movdi_64bit"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r, m,  *f,*f,*r,*f,*m")
-	(match_operand:DI 1 "move_operand"         " r,T,m,rJ,*r*J,*m,*f,*f,*f"))]
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r, r,r,  m,  *f,*f,*r,*f,*m")
+	(match_operand:DI 1 "move_operand"         " r,T,vp,m,rJ,*r*J,*m,*f,*f,*f"))]
   "TARGET_64BIT
    && (register_operand (operands[0], DImode)
        || reg_or_0_operand (operands[1], DImode))"
   { return riscv_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store,mtc,fpload,mfc,fmove,fpstore")
+  [(set_attr "move_type" "move,const,const,load,store,mtc,fpload,mfc,fmove,fpstore")
    (set_attr "mode" "DI")])
 
 ;; 32-bit Integer moves
@@ -1432,6 +1725,36 @@
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store,mtc,mfc")
    (set_attr "mode" "QI")])
+
+;; 16-bit floating point moves
+(define_expand "movhf"
+  [(set (match_operand:HF 0 "")
+	(match_operand:HF 1 ""))]
+  ""
+{
+  if (riscv_legitimize_move (HFmode, operands[0], operands[1]))
+    DONE;
+})
+
+(define_insn "*movhf_hardfloat"
+  [(set (match_operand:HF 0 "nonimmediate_operand" "=f,f,f,m,m,*f,*r,  *r,*r,*m")
+	(match_operand:HF 1 "move_operand"         " f,G,m,f,G,*r,*f,*G*r,*m,*r"))]
+  "TARGET_ZFHMIN
+   && (register_operand (operands[0], HFmode)
+       || reg_or_0_operand (operands[1], HFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
+   (set_attr "mode" "HF")])
+
+(define_insn "*movhf_softfloat"
+  [(set (match_operand:HF 0 "nonimmediate_operand" "= r,r,m,*f,*r")
+	(match_operand:HF 1 "move_operand"         " Gr,m,r,*r,*f"))]
+  "!TARGET_ZFHMIN
+   && (register_operand (operands[0], HFmode)
+       || reg_or_0_operand (operands[1], HFmode))"
+  { return riscv_output_move (operands[0], operands[1]); }
+  [(set_attr "move_type" "move,load,store,mtc,mfc")
+   (set_attr "mode" "HF")])
 
 ;; 32-bit floating point moves
 
@@ -1803,7 +2126,7 @@
        (lshiftrt:GPR (match_dup 3) (match_dup 2)))]
 {
   /* Op2 is a VOIDmode constant, so get the mode size from op1.  */
-  operands[2] = GEN_INT (GET_MODE_BITSIZE (GET_MODE (operands[1]))
+  operands[2] = GEN_INT (GET_MODE_BITSIZE (GET_MODE (operands[1])).to_constant ()
 			 - exact_log2 (INTVAL (operands[2]) + 1));
 })
 
@@ -1833,7 +2156,7 @@
 			   (match_operand:QI 2 "immediate_operand" "I"))
 		(match_operand 3 "immediate_operand" "")))
    (clobber (match_scratch:DI 4 "=&r"))]
-  "TARGET_64BIT
+  "TARGET_64BIT && !TARGET_ZBA
    && ((INTVAL (operands[3]) >> INTVAL (operands[2])) == 0xffffffff)"
   "#"
   "&& reload_completed"
@@ -2465,6 +2788,14 @@
   ""
   "")
 
+(define_insn "riscv_pcntw"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(unspec
+	    [(match_operand:SI 1 "register_operand" "r")]
+	    UNSPEC_PCNTW))]
+  ""
+  "pcntw\t%0,%1")
+
 (define_insn "riscv_frflags"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec_volatile [(const_int 0)] UNSPECV_FRFLAGS))]
@@ -2475,6 +2806,44 @@
   [(unspec_volatile [(match_operand:SI 0 "csr_operand" "rK")] UNSPECV_FSFLAGS)]
   "TARGET_HARD_FLOAT"
   "fsflags\t%0")
+
+(define_insn "riscv_csr_read"
+  [(set (match_operand 0 "register_operand" "=r")
+	(unspec_volatile [(match_operand 1 "csr_address" "C")]
+			 UNSPECV_CSR_READ))]
+  ""
+  "csrr\t%0,%x1")
+
+(define_insn "riscv_csr_read_set_bits"
+  [(set (match_operand 0 "register_operand" "=r")
+	(unspec_volatile [(match_operand 1 "csr_address" "C")
+			  (match_operand 2 "csr_operand" "rK")]
+			 UNSPECV_CSR_READ_SET_BITS))]
+  ""
+  "csrrsi\t%0,%x1,%2")
+
+(define_insn "riscv_csr_read_clear_bits"
+  [(set (match_operand 0 "register_operand" "=r")
+	(unspec_volatile [(match_operand 1 "csr_address" "C")
+			  (match_operand 2 "csr_operand" "rK")]
+			 UNSPECV_CSR_READ_CLEAR_BITS))]
+  ""
+  "csrrci\t%0,%x1,%2")
+
+(define_insn "riscv_csr_read_write"
+  [(set (match_operand 0 "register_operand" "=r")
+	(unspec_volatile [(match_operand 1 "csr_address" "C")
+			  (match_operand 2 "csr_operand" "rK")]
+			 UNSPECV_CSR_READ_WRITE))]
+  ""
+  "csrrw\t%0,%x1,%2")
+
+(define_insn "riscv_csr_write"
+  [(unspec_volatile [(match_operand 0 "csr_address" "C")
+		     (match_operand 1 "register_operand" "r")]
+		    UNSPECV_CSR_WRITE)]
+  ""
+  "csrw\t%x0,%1")
 
 (define_insn "riscv_mret"
   [(return)
@@ -2503,6 +2872,7 @@
   ""
   [(set_attr "length" "0")]
 )
+(include "bitmanip.md")
 
 ;; This fixes a failure with gcc.c-torture/execute/pr64242.c at -O2 for a
 ;; 32-bit target when using -mtune=sifive-7-series.  The first sched pass
@@ -2604,8 +2974,60 @@
   "<load>\t%3, %1\;<load>\t%0, %2\;xor\t%0, %3, %0\;li\t%3, 0"
   [(set_attr "length" "12")])
 
+(define_insn "riscv_clean_<mode>"
+  [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")]
+    UNSPECV_CLEAN)]
+  "TARGET_ZICBOM"
+  "cbo.clean\t%a0"
+)
+
+(define_insn "riscv_flush_<mode>"
+  [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")]
+    UNSPECV_FLUSH)]
+  "TARGET_ZICBOM"
+  "cbo.flush\t%a0"
+)
+
+(define_insn "riscv_inval_<mode>"
+  [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")]
+    UNSPECV_INVAL)]
+  "TARGET_ZICBOM"
+  "cbo.inval\t%a0"
+)
+
+(define_insn "riscv_zero_<mode>"
+  [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")]
+    UNSPECV_ZERO)]
+  "TARGET_ZICBOZ"
+  "cbo.zero\t%a0"
+)
+
+(define_insn "prefetch"
+  [(prefetch (match_operand 0 "address_operand" "p")
+             (match_operand 1 "imm5_operand" "i")
+             (match_operand 2 "const_int_operand" "n"))]
+  "TARGET_ZICBOP"
+{
+  switch (INTVAL (operands[1]))
+  {
+    case 0: return "prefetch.r\t%a0";
+    case 1: return "prefetch.w\t%a0";
+    default: gcc_unreachable ();
+  }
+})
+
+(define_insn "riscv_prefetchi_<mode>"
+  [(unspec_volatile:X [(match_operand:X 0 "address_operand" "p")
+              (match_operand:X 1 "imm5_operand" "i")]
+              UNSPECV_PREI)]
+  "TARGET_ZICBOP"
+  "prefetch.i\t%a0"
+)
+
 (include "sync.md")
 (include "peephole.md")
 (include "pic.md")
+(include "vector.md")
 (include "generic.md")
 (include "sifive-7.md")
+(include "sifive-8.md")

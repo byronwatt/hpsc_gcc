@@ -112,6 +112,8 @@ ASM_MISA_SPEC
 
 #define TARGET_DEFAULT_CMODEL CM_MEDLOW
 
+#define COMPACT_CMODEL_P (riscv_cmodel == CM_COMPACT)
+
 #define LOCAL_LABEL_PREFIX	"."
 #define USER_LABEL_PREFIX	""
 
@@ -122,7 +124,8 @@ ASM_MISA_SPEC
 
 /* The mapping from gcc register number to DWARF 2 CFA column number.  */
 #define DWARF_FRAME_REGNUM(REGNO) \
-  (GP_REG_P (REGNO) || FP_REG_P (REGNO) ? REGNO : INVALID_REGNUM)
+  (GP_REG_P (REGNO) || FP_REG_P (REGNO) || VECT_REG_P (REGNO)	\
+   ? REGNO : INVALID_REGNUM)
 
 /* The DWARF 2 CFA column which tracks the return address.  */
 #define DWARF_FRAME_RETURN_COLUMN RETURN_ADDR_REGNUM
@@ -150,6 +153,7 @@ ASM_MISA_SPEC
 
 /* The `Q' extension is not yet supported.  */
 #define UNITS_PER_FP_REG (TARGET_DOUBLE_FLOAT ? 8 : 4)
+#define UNITS_PER_V_REG (GET_MODE_SIZE (VNx2DImode))
 
 /* The largest type that can be passed in floating-point registers.  */
 #define UNITS_PER_FP_ARG						\
@@ -284,9 +288,13 @@ ASM_MISA_SPEC
    - 32 floating point registers
    - 2 fake registers:
 	- ARG_POINTER_REGNUM
-	- FRAME_POINTER_REGNUM */
+	- FRAME_POINTER_REGNUM
+	- VECTOR_LENGTH_REGNUM
+	- VECTOR_TYPE_REGNUM
+   - 30 unused registers for future expansion
+   - 32 vector registers */
 
-#define FIRST_PSEUDO_REGISTER 66
+#define FIRST_PSEUDO_REGISTER 128
 
 /* x0, sp, gp, and tp are fixed.  */
 
@@ -298,7 +306,11 @@ ASM_MISA_SPEC
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
   /* Others.  */							\
-  1, 1									\
+  1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+  /* Vector registers.  */						\
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0			\
 }
 
 /* a0-a7, t0-t6, fa0-fa7, and ft0-ft11 are volatile across calls.
@@ -312,7 +324,11 @@ ASM_MISA_SPEC
   1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1,			\
   1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,			\
   /* Others.  */							\
-  1, 1									\
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+  /* Vector registers.  */						\
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1			\
 }
 
 /* Select a register mode required for caller save of hard regno REGNO.
@@ -332,6 +348,10 @@ ASM_MISA_SPEC
 #define FP_REG_LAST  63
 #define FP_REG_NUM   (FP_REG_LAST - FP_REG_FIRST + 1)
 
+#define VECT_REG_FIRST 96
+#define VECT_REG_LAST  127
+#define VECT_REG_NUM   (VECT_REG_LAST - VECT_REG_FIRST + 1)
+
 /* The DWARF 2 CFA column which tracks the return address from a
    signal handler context.  This means that to maintain backwards
    compatibility, no hard register can be assigned this column if it
@@ -340,8 +360,10 @@ ASM_MISA_SPEC
 
 #define GP_REG_P(REGNO)	\
   ((unsigned int) ((int) (REGNO) - GP_REG_FIRST) < GP_REG_NUM)
-#define FP_REG_P(REGNO)  \
+#define FP_REG_P(REGNO) \
   ((unsigned int) ((int) (REGNO) - FP_REG_FIRST) < FP_REG_NUM)
+#define VECT_REG_P(REGNO) \
+  ((unsigned int) ((int) (REGNO) - VECT_REG_FIRST) < VECT_REG_NUM)
 
 /* True when REGNO is in SIBCALL_REGS set.  */
 #define SIBCALL_REG_P(REGNO)	\
@@ -353,11 +375,17 @@ ASM_MISA_SPEC
 #define HARD_FRAME_POINTER_REGNUM 8
 #define STACK_POINTER_REGNUM 2
 #define THREAD_POINTER_REGNUM 4
+#define PIC_OFFSET_TABLE_REGNUM \
+  (!(COMPACT_CMODEL_P && flag_pic) ? 3 : INVALID_REGNUM)
 
 /* These two registers don't really exist: they get eliminated to either
    the stack or hard frame pointer.  */
 #define ARG_POINTER_REGNUM 64
 #define FRAME_POINTER_REGNUM 65
+/* These two registers don't really exist: they are used for vector
+   operations.  */
+#define VECTOR_LENGTH_REGNUM 66
+#define VECTOR_TYPE_REGNUM 67
 
 /* Register in which static-chain is passed to a function.  */
 #define STATIC_CHAIN_REGNUM (GP_TEMP_FIRST + 2)
@@ -371,6 +399,8 @@ ASM_MISA_SPEC
 
 #define RISCV_PROLOGUE_TEMP_REGNUM (GP_TEMP_FIRST)
 #define RISCV_PROLOGUE_TEMP(MODE) gen_rtx_REG (MODE, RISCV_PROLOGUE_TEMP_REGNUM)
+#define RISCV_PROLOGUE_TEMP2_REGNUM (GP_TEMP_FIRST + 2)
+#define RISCV_PROLOGUE_TEMP2(MODE) gen_rtx_REG (MODE, RISCV_PROLOGUE_TEMP2_REGNUM)
 
 #define RISCV_CALL_ADDRESS_TEMP_REGNUM (GP_TEMP_FIRST + 1)
 #define RISCV_CALL_ADDRESS_TEMP(MODE) \
@@ -425,6 +455,10 @@ enum reg_class
   GR_REGS,			/* integer registers */
   FP_REGS,			/* floating-point registers */
   FRAME_REGS,			/* arg pointer and frame pointer */
+  VECTOR_MASK_REGS,		/* vector mask registers */
+  VECTOR_NO_MASK_REGS,		/* vector registers except mask registers */
+  VECTOR_REGS,			/* vector registers */
+  VTYPE_REGS,			/* vype register */
   ALL_REGS,			/* all registers */
   LIM_REG_CLASSES		/* max value + 1 */
 };
@@ -445,6 +479,10 @@ enum reg_class
   "GR_REGS",								\
   "FP_REGS",								\
   "FRAME_REGS",								\
+  "VECTOR_MASK_REGS", 							\
+  "VECTOR_NO_MASK_REGS", 						\
+  "VECTOR_REGS", 							\
+  "VTYPE_REGS", 							\
   "ALL_REGS"								\
 }
 
@@ -461,13 +499,17 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS						\
 {									\
-  { 0x00000000, 0x00000000, 0x00000000 },	/* NO_REGS */		\
-  { 0xf003fcc0, 0x00000000, 0x00000000 },	/* SIBCALL_REGS */	\
-  { 0xffffffc0, 0x00000000, 0x00000000 },	/* JALR_REGS */		\
-  { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS */		\
-  { 0x00000000, 0xffffffff, 0x00000000 },	/* FP_REGS */		\
-  { 0x00000000, 0x00000000, 0x00000003 },	/* FRAME_REGS */	\
-  { 0xffffffff, 0xffffffff, 0x00000003 }	/* ALL_REGS */		\
+  { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },	/* NO_REGS */		\
+  { 0xf003fcc0, 0x00000000, 0x00000000, 0x00000000 },	/* SIBCALL_REGS */	\
+  { 0xffffffc0, 0x00000000, 0x00000000, 0x00000000 },	/* JALR_REGS */		\
+  { 0xffffffff, 0x00000000, 0x00000000, 0x00000000 },	/* GR_REGS */		\
+  { 0x00000000, 0xffffffff, 0x00000000, 0x00000000 },	/* FP_REGS */		\
+  { 0x00000000, 0x00000000, 0x00000003, 0x00000000 },	/* FRAME_REGS */	\
+  { 0x00000000, 0x00000000, 0x00000000, 0x00000001 },	/* VECTOR_MASK_REGS */\
+  { 0x00000000, 0x00000000, 0x00000000, 0xfffffffe },	/* VECTOR_REGS */\
+  { 0x00000000, 0x00000000, 0x00000000, 0xffffffff },	/* VECTOR_REGS */\
+  { 0x00000000, 0x00000000, 0x00000008, 0x00000000 },	/* VTYPE_REGS */\
+  { 0xffffffff, 0xffffffff, 0x0000000f, 0xffffffff }	/* ALL_REGS */		\
 }
 
 /* A C expression whose value is a register class containing hard
@@ -507,9 +549,15 @@ enum reg_class
   60, 61, 62, 63,							\
   /* Call-saved FPRs.  */						\
   40, 41, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,			\
+  /* Call-clobbered vector registers.  */				\
+  97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110,	\
+  111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123,	\
+  124, 125, 126, 127,							\
+  /* The vector mask register.  */					\
+  96,									\
   /* None of the remaining classes have defined call-saved		\
      registers.  */							\
-  64, 65								\
+  64, 65, 66, 67							\
 }
 
 /* True if VALUE is a signed 12-bit number.  */
@@ -517,11 +565,28 @@ enum reg_class
 #define SMALL_OPERAND(VALUE) \
   ((unsigned HOST_WIDE_INT) (VALUE) + IMM_REACH/2 < IMM_REACH)
 
+#define POLY_SMALL_OPERAND_P(POLY_VALUE)		\
+  (POLY_VALUE.is_constant () ?				\
+     SMALL_OPERAND (POLY_VALUE.to_constant ()) : false)
+
 /* True if VALUE can be loaded into a register using LUI.  */
 
 #define LUI_OPERAND(VALUE)						\
   (((VALUE) | ((1UL<<31) - IMM_REACH)) == ((1UL<<31) - IMM_REACH)	\
    || ((VALUE) | ((1UL<<31) - IMM_REACH)) + IMM_REACH == 0)
+
+/* The following macros use B extension instructions to load constants.  */
+
+/* If this is a single bit mask, then we can load it with sbseti.  But this
+   is not useful for any of the low 31 bits because we can use addi or lui
+   to load them.  It is wrong for loading SImode 0x80000000 on rv64 because it
+   needs to be sign-extended.  So we restrict this to the upper 32-bits
+   only.  */
+/* ??? It is OK for DImode 0x80000000 on rv64, but we don't know the target
+   mode in riscv_build_integer_1 so can't handle this case separate from the
+   bad SImode case.  */
+#define SINGLE_BIT_MASK_OPERAND(VALUE) \
+  (pow2p_hwi (VALUE) && (ctz_hwi (VALUE) >= 32))
 
 /* Stack layout; function entry, exit and calling.  */
 
@@ -679,7 +744,7 @@ typedef struct {
   } while (0)
 
 #define JUMP_TABLES_IN_TEXT_SECTION 0
-#define CASE_VECTOR_MODE SImode
+#define CASE_VECTOR_MODE (COMPACT_CMODEL_P ? DImode : SImode)
 #define CASE_VECTOR_PC_RELATIVE (riscv_cmodel != CM_MEDLOW)
 
 /* The load-address macro is used for PC-relative addressing of symbols
@@ -738,9 +803,19 @@ typedef struct {
    SLT[I][U], AND[I], XOR[I], OR[I], LUI, AUIPC, and their compressed
    counterparts, including C.MV and C.LI) can be in the branch shadow.  */
 
-#define TARGET_SFB_ALU (riscv_microarchitecture == sifive_7)
+#define TARGET_SFB_ALU \
+ ((riscv_microarchitecture == sifive_7) \
+  || (riscv_microarchitecture == sifive_7n) \
+  || (riscv_microarchitecture == sifive_8))
 
 #define LOGICAL_OP_NON_SHORT_CIRCUIT 0
+
+/* Configure CLZ/CTZ behavior. */
+
+#define CLZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
+  ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
+#define CTZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
+  ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
 
 /* Control the assembler format that we output.  */
 
@@ -767,7 +842,15 @@ typedef struct {
   "fs0", "fs1", "fa0", "fa1", "fa2", "fa3", "fa4", "fa5",	\
   "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7",	\
   "fs8", "fs9", "fs10","fs11","ft8", "ft9", "ft10","ft11",	\
-  "arg", "frame", }
+  "arg", "frame","vl","vtype","N/A", "N/A", "N/A", "N/A",	\
+  "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", 	\
+  "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", 	\
+  "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", 	\
+  "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",	\
+  "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",	\
+  "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",	\
+  "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31" 	\
+}
 
 #define ADDITIONAL_REGISTER_NAMES					\
 {									\
@@ -852,12 +935,15 @@ typedef struct {
 /* This is how to output an element of a case-vector that is absolute.  */
 
 #define ASM_OUTPUT_ADDR_VEC_ELT(STREAM, VALUE)				\
-  fprintf (STREAM, "\t.word\t%sL%d\n", LOCAL_LABEL_PREFIX, VALUE)
+  fprintf (STREAM, "\t%s\t%sL%d\n",					\
+	   COMPACT_CMODEL_P ? ".dword" : ".word",			\
+	   LOCAL_LABEL_PREFIX, VALUE)
 
 /* This is how to output an element of a PIC case-vector. */
 
 #define ASM_OUTPUT_ADDR_DIFF_ELT(STREAM, BODY, VALUE, REL)		\
-  fprintf (STREAM, "\t.word\t%sL%d-%sL%d\n",				\
+  fprintf (STREAM, "\t%s\t%sL%d-%sL%d\n",				\
+	   COMPACT_CMODEL_P ? ".dword" : ".word",			\
 	   LOCAL_LABEL_PREFIX, VALUE, LOCAL_LABEL_PREFIX, REL)
 
 /* This is how to output an assembler line
@@ -942,10 +1028,12 @@ while (0)
 extern const enum reg_class riscv_regno_to_class[];
 extern bool riscv_slow_unaligned_access_p;
 extern unsigned riscv_stack_boundary;
+extern bool compact_code_needed;
 #endif
 
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL) \
-  (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | DW_EH_PE_sdata4)
+  (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel \
+    | (COMPACT_CMODEL_P ? DW_EH_PE_sdata8 : DW_EH_PE_sdata4))
 
 #define XLEN_SPEC \
   "%{march=rv32*:32}" \
@@ -990,5 +1078,28 @@ extern unsigned riscv_stack_boundary;
 extern void riscv_remove_unneeded_save_restore_calls (void);
 
 #define HARD_REGNO_RENAME_OK(FROM, TO) riscv_hard_regno_rename_ok (FROM, TO)
+
+#ifndef USED_FOR_TARGET
+extern poly_uint16 riscv_rvv_chunks;
+
+/* The number of bits and bytes in a RVV vector.  */
+#define BITS_PER_RVV_VECTOR (poly_uint16 (riscv_rvv_chunks * 64))
+#define BYTES_PER_RVV_VECTOR (poly_uint16 (riscv_rvv_chunks * 8))
+#endif
+
+/* Minimal value of VLEN in bytes.  */
+#define MIN_VLENB \
+  (MAX (UNITS_PER_WORD, UNITS_PER_FP_REG))
+
+#define TARGET_SUPPORTS_WIDE_INT 1
+
+#define REGMODE_NATURAL_SIZE(MODE) riscv_regmode_natural_size (MODE)
+
+#define RISCV_DWARF_VLENB (4096 + 0xc22)
+
+#define DWARF_FRAME_REGISTERS (FIRST_PSEUDO_REGISTER + 1 /* VLENB */)
+
+#define DWARF_REG_TO_UNWIND_COLUMN(REGNO) \
+  ((REGNO == RISCV_DWARF_VLENB) ? (FIRST_PSEUDO_REGISTER + 1) : REGNO)
 
 #endif /* ! GCC_RISCV_H */

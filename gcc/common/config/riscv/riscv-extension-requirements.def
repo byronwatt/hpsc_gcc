@@ -1,0 +1,51 @@
+/* Extension requirement information for RISC-V target.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+
+This file is part of GCC.
+
+GCC is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
+
+/* This is a list of extension requirement types.
+
+   Before using #include to read this file, define at least a macro:
+
+      RISCV_EXT_REQ(REQ_NAME, REQ_CHECK, ERROR_MSG)
+
+   The REQ_NAME is the name of the extension requirement types.
+   The REQ_CHECK is expression to check the requirement of this type.
+   The ERROR_MSG is the output string if not satisfies this requirement.
+
+   And define RISCV_CHECK_EXT if you are generating checking function:
+
+     RISCV_CHECK_EXT(EXT_NAME)
+
+   The EXT_NAME is the extension name which required by this requirement
+   types. */
+
+RISCV_EXT_REQ(RV_REQUIRE_V_OR_ANY_ZVE,
+	      (RISCV_CHECK_EXT("v") || RISCV_CHECK_EXT("zve32x")
+	       || RISCV_CHECK_EXT("zve32f") || RISCV_CHECK_EXT("zve64x")
+	       || RISCV_CHECK_EXT("zve64f") || RISCV_CHECK_EXT("zve64d")),
+	      "require either 'v' or 'zve*' extension")
+
+RISCV_EXT_REQ(RV_REQUIRE_V_OR_ANY_ZVE_AND_ZVL128,
+	      ((RISCV_CHECK_EXT("v") || RISCV_CHECK_EXT("zve32x")
+	        || RISCV_CHECK_EXT("zve32f") || RISCV_CHECK_EXT("zve64x")
+	        || RISCV_CHECK_EXT("zve64f") || RISCV_CHECK_EXT("zve64d"))
+	       && RISCV_CHECK_EXT("zvl128b")),
+	      "require either 'v' or 'zve*' extension and zvl is at least 128")
+
+#undef RISCV_EXT_REQ
+#undef RISCV_CHECK_EXT

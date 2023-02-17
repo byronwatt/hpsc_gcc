@@ -34,3 +34,5 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC "crtend%O%s"
+
+#define RISCV_USE_CUSTOMISED_MULTI_LIB 1

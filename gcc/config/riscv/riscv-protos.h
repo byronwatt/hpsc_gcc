@@ -31,7 +31,9 @@ enum riscv_symbol_type {
   SYMBOL_TLS,
   SYMBOL_TLS_LE,
   SYMBOL_TLS_IE,
-  SYMBOL_TLS_GD
+  SYMBOL_TLS_GD,
+  SYMBOL_GPREL,
+  SYMBOL_GOT_GPREL
 };
 #define NUM_SYMBOL_TYPES (SYMBOL_TLS_GD + 1)
 
@@ -64,7 +66,7 @@ extern rtx riscv_legitimize_call_address (rtx);
 extern void riscv_set_return_address (rtx, rtx);
 extern bool riscv_expand_block_move (rtx, rtx, rtx);
 extern rtx riscv_return_addr (int, rtx);
-extern HOST_WIDE_INT riscv_initial_elimination_offset (int, int);
+extern poly_int64 riscv_initial_elimination_offset (int, int);
 extern void riscv_expand_prologue (void);
 extern void riscv_expand_epilogue (int);
 extern bool riscv_epilogue_uses (unsigned int);
@@ -72,8 +74,14 @@ extern bool riscv_can_use_return_insn (void);
 extern rtx riscv_function_value (const_tree, const_tree, enum machine_mode);
 extern bool riscv_expand_block_move (rtx, rtx, rtx);
 extern bool riscv_store_data_bypass_p (rtx_insn *, rtx_insn *);
+extern bool riscv_zero_offset_address_bypass_p (rtx_insn *, rtx_insn *);
 extern rtx riscv_gen_gpr_save_insn (struct riscv_frame_info *);
 extern bool riscv_gpr_save_operation_p (rtx);
+
+/* Routines for vector support.  */
+bool riscv_const_vec_all_same_in_range_p (rtx, HOST_WIDE_INT, HOST_WIDE_INT);
+extern poly_uint64 riscv_regmode_natural_size (machine_mode);
+extern void riscv_expand_vtuple_create (rtx *);
 
 /* Routines implemented in riscv-c.c.  */
 void riscv_cpu_cpp_builtins (cpp_reader *);
@@ -109,4 +117,9 @@ struct riscv_cpu_info {
 
 extern const riscv_cpu_info *riscv_find_cpu (const char *);
 
+/* Routines for vector tuple types.  */
+extern int riscv_get_nf (machine_mode);
+
+extern tree riscv_fp16_type_node;
+extern bool riscv_use_pseudo_pic_reg (void);
 #endif /* ! GCC_RISCV_PROTOS_H */

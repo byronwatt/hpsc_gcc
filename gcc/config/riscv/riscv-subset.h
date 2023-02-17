@@ -1,7 +1,5 @@
 /* Definition of data structure of RISC-V subset for GNU compiler.
    Copyright (C) 2011-2021 Free Software Foundation, Inc.
-   Contributed by Andrew Waterman (andrew@sifive.com).
-   Based on MIPS target for GNU compiler.
 
 This file is part of GCC.
 
@@ -22,9 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_RISCV_SUBSET_H
 #define GCC_RISCV_SUBSET_H
 
-#define RISCV_DONT_CARE_VERSION -1
-
-/* Subset info.  */
 struct riscv_subset_t
 {
   riscv_subset_t ();
@@ -37,6 +32,8 @@ struct riscv_subset_t
   bool explicit_version_p;
   bool implied_p;
 };
+
+#define RISCV_DONT_CARE_VERSION -1
 
 /* Subset list.  */
 class riscv_subset_list
@@ -64,10 +61,10 @@ private:
 
   const char *parse_std_ext (const char *);
 
-  const char *parse_multiletter_ext (const char *, const char *,
-				     const char *);
+  const char *parse_multiletter_ext (const char *);
 
-  void handle_implied_ext (riscv_subset_t *);
+  bool handle_implied_ext (riscv_subset_t *);
+  bool check_extension_requirements ();
 
 public:
   ~riscv_subset_list ();
@@ -85,6 +82,8 @@ public:
   unsigned xlen () const {return m_xlen;};
 
   static riscv_subset_list *parse (const char *, location_t);
+
+  int match_score (riscv_subset_list *) const;
 
   const riscv_subset_t *begin () const {return m_head;};
   const riscv_subset_t *end () const {return NULL;};

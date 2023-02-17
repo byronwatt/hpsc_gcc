@@ -123,6 +123,9 @@ Enum(code_model) String(medlow) Value(CM_MEDLOW)
 EnumValue
 Enum(code_model) String(medany) Value(CM_MEDANY)
 
+EnumValue
+Enum(code_model) String(compact) Value(CM_COMPACT)
+
 mexplicit-relocs
 Target Mask(EXPLICIT_RELOCS)
 Use %reloc() operators, rather than assembly macros, to load addresses.
@@ -132,9 +135,37 @@ Target Bool Var(riscv_mrelax) Init(1)
 Take advantage of linker relaxations to reduce the number of instructions
 required to materialize symbol addresses.
 
+Enum
+Name(rvv_vector_bits) Type(enum riscv_rvv_vector_bits_enum)
+The possible RVV vector lengths:
+
+EnumValue
+Enum(rvv_vector_bits) String(scalable) Value(RVV_SCALABLE)
+
+EnumValue
+Enum(rvv_vector_bits) String(64) Value(RVV_64)
+
+EnumValue
+Enum(rvv_vector_bits) String(128) Value(RVV_128)
+
+EnumValue
+Enum(rvv_vector_bits) String(256) Value(RVV_256)
+
+EnumValue
+Enum(rvv_vector_bits) String(512) Value(RVV_512)
+
+EnumValue
+Enum(rvv_vector_bits) String(1024) Value(RVV_1024)
+
+mrvv-vector-bits=
+Target RejectNegative Joined Enum(rvv_vector_bits) Var(riscv_rvv_vector_bits) Init(RVV_SCALABLE)
+-mrvv-vector-bits=<number>	Set the number of bits in an RVV vector register to N.
+
 Mask(64BIT)
 
 Mask(MUL)
+
+Mask(BITMANIP)
 
 Mask(ATOMIC)
 
@@ -145,6 +176,8 @@ Mask(DOUBLE_FLOAT)
 Mask(RVC)
 
 Mask(RVE)
+
+Mask(VECTOR)
 
 mriscv-attribute
 Target Var(riscv_emit_attribute_p) Init(-1)
@@ -195,6 +228,30 @@ long riscv_stack_protector_guard_offset = 0
 TargetVariable
 int riscv_zi_subext
 
+TargetVariable
+int riscv_bitmanip_subext
+
+TargetVariable
+int riscv_zv_subext
+
+TargetVariable
+int riscv_vector_elen_flags
+
+TargetVariable
+int riscv_zvl_flags
+
+TargetVariable
+int riscv_zicmo_subext
+
+TargetVariable
+int riscv_zf_subext
+
+TargetVariable
+int riscv_zk_flags
+
+TargetVariable
+int riscv_sv_subext
+
 Enum
 Name(isa_spec_class) Type(enum riscv_isa_spec_class)
 Supported ISA specs (for use with the -misa-spec= option):
@@ -209,5 +266,22 @@ EnumValue
 Enum(isa_spec_class) String(20191213) Value(ISA_SPEC_CLASS_20191213)
 
 misa-spec=
-Target RejectNegative Joined Enum(isa_spec_class) Var(riscv_isa_spec) Init(TARGET_DEFAULT_ISA_SPEC)
+Common Driver RejectNegative Joined Enum(isa_spec_class) Var(riscv_isa_spec) Init(TARGET_DEFAULT_ISA_SPEC)
 Set the version of RISC-V ISA spec.
+
+menable-experimental-extensions
+Target RejectNegative
+Enable use of experimental RISC-V extensions.
+
+Enum
+Name(fp16_eval_format) Type(enum riscv_fp16_eval_format_t)
+Evaluation format for __fp16 (for use with the -mfp16-eval= option):
+
+EnumValue
+Enum(fp16_eval_format) String(native) Value(FP16_EVAL_NATIVE)
+
+EnumValue
+Enum(fp16_eval_format) String(float) Value(FP16_EVAL_FLOAT)
+
+mfp16-eval=
+Target RejectNegative Joined Enum(fp16_eval_format) Var(riscv_fp16_eval_format) Init(FP16_EVAL_NATIVE)
